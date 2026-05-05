@@ -1,14 +1,16 @@
 #!/bin/bash
 #####################################################################################
 # Author: Tempus Thales
-# Version: 0.05
+# Version: 0.06
 # Date: 05/04/2026 May the fourth be with you.
 # Description: Convert YouTube URLs to MP4 video or MP3 audio.
 #
-# Auto-installs missing deps on Arch, Debian/Ubuntu, and Fedora families, because
-# I'm cool like that.
+# Auto-installs missing deps on macOS, Arch, Debian/Ubuntu, and Fedora families,
+# because I'm cool like that.
 #####################################################################################
 # Changelog:
+# 0.06 - 05/04/2026 - Added macOS support via Homebrew
+#                   - Exits with brew install instructions if brew is missing
 # 0.05 - 05/04/2026 - -l can be used alone to download an entire playlist
 #                   - Builds canonical playlist?list= URL when no video ID given
 # 0.04 - 05/04/2026 - Simplified invocation: pass YouTube video IDs instead of URLs
@@ -66,12 +68,19 @@ Notes:
   * Positional arguments are YouTube video IDs (the part after v= in the URL).
   * Full URLs are also accepted if you'd rather paste them in directly.
   * Files are named "<video title>.<ext>" in the output directory.
-  * Missing yt-dlp/ffmpeg are auto-installed on Arch, Debian/Ubuntu, Fedora.
+  * Missing yt-dlp/ffmpeg are auto-installed on macOS (via Homebrew),
+    Arch, Debian/Ubuntu, and Fedora.
 EOF
 }
 
-# Echoes "arch", "debian", "fedora", or "" (unsupported/undetected).
+# Echoes "macos", "arch", "debian", "fedora", or "" (unsupported/undetected).
 detect_os_family() {
+    # macOS first: it doesn't ship /etc/os-release.
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        echo "macos"
+        return
+    fi
+
     if [[ ! -r /etc/os-release ]]; then
         echo ""
         return
@@ -101,8 +110,19 @@ install_deps() {
 
     if [[ -z "$family" ]]; then
         echo "Error: missing dependencies (${missing[*]}) and OS could not be identified." >&2
-        echo "Supported auto-install: Arch, Debian/Ubuntu, Fedora families." >&2
+        echo "Supported auto-install: macOS, Arch, Debian/Ubuntu, Fedora families." >&2
         echo "Install ${missing[*]} manually and re-run." >&2
+        exit 1
+    fi
+
+    # macOS requires Homebrew. Bail with install instructions if brew is missing.
+    if [[ "$family" == "macos" ]] && ! command -v brew >/dev/null 2>&1; then
+        echo "Error: Homebrew is required to auto-install dependencies on macOS." >&2
+        echo "" >&2
+        echo "Install Homebrew, then re-run this script:" >&2
+        echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' >&2
+        echo "" >&2
+        echo "More info: https://brew.sh" >&2
         exit 1
     fi
 
@@ -124,6 +144,7 @@ install_deps() {
 
     local desc
     case "$family" in
+        macos)  desc="brew install ${pkgs[*]}" ;;
         arch)   desc="sudo pacman -S --needed ${pkgs[*]}" ;;
         debian) desc="sudo apt update && sudo apt install -y ${pkgs[*]}" ;;
         fedora) desc="sudo dnf install -y ${pkgs[*]}" ;;
@@ -143,6 +164,7 @@ install_deps() {
     fi
 
     case "$family" in
+        macos)  brew install "${pkgs[@]}" ;;
         arch)   sudo pacman -S --needed "${pkgs[@]}" ;;
         debian) sudo apt update && sudo apt install -y "${pkgs[@]}" ;;
         fedora) sudo dnf install -y "${pkgs[@]}" ;;
